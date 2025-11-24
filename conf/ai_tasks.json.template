@@ -1,0 +1,87 @@
+{
+  "_comment": "ZLMediaKit AI Vision 任务配置模板",
+  "_description": "配置AI模型和流绑定关系",
+  
+  "models": {
+    "yolo_person": {
+      "model_path": "./ai-vision/models/yolov8n.onnx",
+      "model_type": "yolo",
+      "provider": "cuda",
+      "device_id": 0,
+      "batch_size": 1,
+      "enabled": true,
+      "conf_threshold": 0.6,
+      "nms_threshold": 0.4
+    },
+    "yolo_vehicle": {
+      "model_path": "./ai-vision/models/yolov8n.onnx",
+      "model_type": "yolo",
+      "provider": "cuda",
+      "device_id": 0,
+      "batch_size": 1,
+      "enabled": true,
+      "conf_threshold": 0.7,
+      "nms_threshold": 0.5
+    },
+    "face_detection": {
+      "model_path": "./ai-vision/models/retinaface.onnx",
+      "model_type": "face_det",
+      "provider": "cuda",
+      "device_id": 0,
+      "batch_size": 1,
+      "enabled": false,
+      "conf_threshold": 0.8,
+      "nms_threshold": 0.4
+    }
+  },
+  
+  "tasks": {
+    "task_person_det": {
+      "model_id": "yolo_person",
+      "model_type": "yolo",
+      "conf_threshold": 0.6,
+      "nms_threshold": 0.4,
+      "skip_frames": 0,
+      "roi": {
+        "enabled": false,
+        "x": 0.0,
+        "y": 0.0,
+        "w": 1.0,
+        "h": 1.0
+      },
+      "enabled": true,
+      "priority": 5
+    },
+    "task_vehicle_counting": {
+      "model_id": "yolo_vehicle",
+      "model_type": "yolo",
+      "conf_threshold": 0.7,
+      "nms_threshold": 0.5,
+      "skip_frames": 2,
+      "roi": {
+        "enabled": true,
+        "x": 0.2,
+        "y": 0.3,
+        "w": 0.6,
+        "h": 0.5
+      },
+      "enabled": true,
+      "priority": 3
+    }
+  },
+  
+  "bindings": {
+    "__default__/live/camera01": ["task_person_det"],
+    "__default__/live/camera02": ["task_person_det", "task_vehicle_counting"],
+    "__default__/live/camera03": ["task_vehicle_counting"]
+  },
+  
+  "_notes": [
+    "1. model_path: 相对于MediaServer工作目录的路径",
+    "2. provider: 可选值 cpu/cuda/tensorrt",
+    "3. skip_frames: 跳帧处理，0表示不跳帧",
+    "4. roi: Region of Interest，归一化坐标[0,1]",
+    "5. bindings: 格式为 'vhost/app/stream': ['task_id1', 'task_id2']",
+    "6. 支持热加载：修改后调用API /index/api/ai/reload 即可生效"
+  ]
+}

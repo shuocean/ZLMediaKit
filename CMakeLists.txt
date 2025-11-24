@@ -62,6 +62,11 @@ option(DISABLE_REPORT "Disable report to report.zlmediakit.com" OFF)
 option(USE_SOLUTION_FOLDERS "Enable solution dir supported" ON)
 option(ENABLE_OBJCOPY "Enable use objcopy to generate debug info file" ON)
 
+# AI Vision Module Options (Optional, disabled by default for compatibility)
+option(ENABLE_AI_VISION "Enable AI Vision Analysis Module" OFF)
+option(ENABLE_CUDA "Enable NVIDIA CUDA for AI" ON)
+option(ENABLE_PYTHON_PLUGIN "Enable Python Plugin Support" ON)
+
 ##############################################################################
 # 设置socket默认缓冲区大小为256k.如果设置为0则不设置socket的默认缓冲区大小,使用系统内核默认值(设置为0仅对linux有效)
 # Set the default buffer size of the socket to 256k. If set to 0, the default buffer size of the socket will not be set,
@@ -518,6 +523,12 @@ add_subdirectory(3rdpart)
 add_subdirectory(src)
 
 add_subdirectory(ext-codec)
+
+# AI Vision Module (Optional)
+if(ENABLE_AI_VISION)
+  message(STATUS "AI Vision Module enabled")
+  add_subdirectory(ai-vision)
+endif()
 
 if(ENABLE_SRT)
   add_subdirectory(srt)
