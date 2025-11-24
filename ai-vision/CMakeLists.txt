@@ -67,6 +67,7 @@ set(AI_VISION_SOURCES
     src/core/FrameConverter.cpp
     src/core/GpuUploader.cpp
     src/core/AIPipeline.cpp
+    src/core/YoloDetector.cpp
     src/task/AITaskManager.cpp
     src/task/TaskScheduler.cpp
     src/alert/AlertEngine.cpp
