@@ -3,12 +3,10 @@
  */
 
 #include "FrameConverter.h"
-#include "JsonHelper.h"
 #include "Util/logger.h"
 #include "Util/util.h"
 #include <cstring>
 #include <algorithm>
-#include <sstream>
 
 extern "C" {
 #include <libswscale/swscale.h>
@@ -166,39 +164,6 @@ bool ConverterConfig::isValid() const {
            dst_width > 0 && dst_height > 0;
 }
 
-bool ConverterConfig::fromJson(const string &json_str) {
-    int src_fmt = 0, dst_fmt = 0;
-    JsonHelper::parseInt(json_str, "src_format", src_fmt);
-    JsonHelper::parseInt(json_str, "dst_format", dst_fmt);
-    src_format = static_cast<PixelFormat>(src_fmt);
-    dst_format = static_cast<PixelFormat>(dst_fmt);
-    
-    JsonHelper::parseInt(json_str, "src_width", src_width);
-    JsonHelper::parseInt(json_str, "src_height", src_height);
-    JsonHelper::parseInt(json_str, "dst_width", dst_width);
-    JsonHelper::parseInt(json_str, "dst_height", dst_height);
-    JsonHelper::parseBool(json_str, "use_simd", use_simd);
-    JsonHelper::parseInt(json_str, "quality", quality);
-    
-    InfoL << "ConverterConfig loaded from JSON";
-    return true;
-}
-
-string ConverterConfig::toJson() const {
-    stringstream ss;
-    ss << JsonHelper::objectStart();
-    ss << JsonHelper::field("src_format", static_cast<int>(src_format));
-    ss << JsonHelper::field("dst_format", static_cast<int>(dst_format));
-    ss << JsonHelper::field("src_width", src_width);
-    ss << JsonHelper::field("src_height", src_height);
-    ss << JsonHelper::field("dst_width", dst_width);
-    ss << JsonHelper::field("dst_height", dst_height);
-    ss << JsonHelper::field("use_simd", use_simd);
-    ss << JsonHelper::field("quality", quality, true);
-    ss << JsonHelper::objectEnd();
-    return ss.str();
-}
-
 // ==================== FrameConverter ====================
 
 FrameConverter::Ptr FrameConverter::create(const ConverterConfig &config) {
@@ -319,22 +284,8 @@ int SwscaleConverter::convertBatch(const FrameData *src_frames,
 }
 
 string SwscaleConverter::getStatistics() const {
-    stringstream ss;
-    ss << JsonHelper::objectStart();
-    ss << JsonHelper::field("converter_type", "swscale");
-    ss << JsonHelper::field("convert_count", (int)_stats.convert_count);
-    ss << JsonHelper::field("total_time_us", (int)_stats.total_time_us);
-    
-    float avg_time_ms = _stats.convert_count > 0 ?
-        (_stats.total_time_us / (float)_stats.convert_count / 1000.0f) : 0.0f;
-    ss << JsonHelper::field("avg_time_ms", avg_time_ms);
-    
-    float throughput_fps = _stats.total_time_us > 0 ?
-        (_stats.convert_count * 1000000.0f / _stats.total_time_us) : 0.0f;
-    ss << JsonHelper::field("throughput_fps", throughput_fps, true);
-    
-    ss << JsonHelper::objectEnd();
-    return ss.str();
+    // TODO: Phase 3 - JSON序列化
+    return "{}";
 }
 
 void SwscaleConverter::resetStatistics() {
