@@ -1,0 +1,15 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/shwado/Work/code/shwado/ZLMediaKit/cmake_install.cmake",
+		"/Users/shwado/Work/code/shwado/ZLMediaKit/3rdpart/cmake_install.cmake",
+		"/Users/shwado/Work/code/shwado/ZLMediaKit/src/cmake_install.cmake",
+		"/Users/shwado/Work/code/shwado/ZLMediaKit/ext-codec/cmake_install.cmake",
+		"/Users/shwado/Work/code/shwado/ZLMediaKit/srt/cmake_install.cmake",
+		"/Users/shwado/Work/code/shwado/ZLMediaKit/api/cmake_install.cmake",
+		"/Users/shwado/Work/code/shwado/ZLMediaKit/api/tests/cmake_install.cmake",
+		"/Users/shwado/Work/code/shwado/ZLMediaKit/server/cmake_install.cmake",
+		"/Users/shwado/Work/code/shwado/ZLMediaKit/tests/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

@@ -264,8 +264,124 @@ bool SwscaleConverter::convert(const FrameData &src, FrameData &dst) {
     
     auto start = chrono::high_resolution_clock::now();
     
-    // TODO: Phase 3 - 实际转换逻辑
-    // 这里提供框架，Phase 3完善
+    // 确保目标帧已经按目标尺寸和格式分配好内存
+    if (!dst.data || dst.width != _config.dst_width || dst.height != _config.dst_height || dst.format != _config.dst_format) {
+        if (!dst.allocate(_config.dst_width, _config.dst_height, _config.dst_format)) {
+            ErrorL << "Failed to allocate dst frame for convert: "
+                   << _config.dst_width << "x" << _config.dst_height;
+            return false;
+        }
+        dst.pts = src.pts;
+    }
+
+    // 构造 libswscale 需要的平面指针与步长
+    uint8_t *src_data[4] = {nullptr};
+    int src_linesize[4] = {0};
+    uint8_t *dst_data[4] = {nullptr};
+    int dst_linesize[4] = {0};
+
+    // 源数据布局
+    switch (_config.src_format) {
+    case PixelFormat::YUV420P: {
+        int y_stride = src.width;
+        int uv_stride = src.width / 2;
+        size_t y_size = y_stride * src.height;
+        size_t u_size = uv_stride * (src.height / 2);
+        src_data[0] = src.data;
+        src_linesize[0] = y_stride;
+        src_data[1] = src.data + y_size;
+        src_linesize[1] = uv_stride;
+        src_data[2] = src.data + y_size + u_size;
+        src_linesize[2] = uv_stride;
+        break;
+    }
+    case PixelFormat::NV12: {
+        int y_stride = src.width;
+        int uv_stride = src.width;
+        size_t y_size = y_stride * src.height;
+        src_data[0] = src.data;
+        src_linesize[0] = y_stride;
+        src_data[1] = src.data + y_size;
+        src_linesize[1] = uv_stride;
+        break;
+    }
+    case PixelFormat::RGB24:
+    case PixelFormat::BGR24: {
+        src_data[0] = src.data;
+        src_linesize[0] = src.linesize > 0 ? src.linesize : src.width * 3;
+        break;
+    }
+    case PixelFormat::RGBA:
+    case PixelFormat::BGRA: {
+        src_data[0] = src.data;
+        src_linesize[0] = src.linesize > 0 ? src.linesize : src.width * 4;
+        break;
+    }
+    case PixelFormat::GRAY: {
+        src_data[0] = src.data;
+        src_linesize[0] = src.linesize > 0 ? src.linesize : src.width;
+        break;
+    }
+    default:
+        ErrorL << "Unsupported src pixel format in SwscaleConverter";
+        return false;
+    }
+
+    // 目标数据布局（目前仅支持打包格式与单通道，其他按 swscale 规则线性填充）
+    switch (_config.dst_format) {
+    case PixelFormat::RGB24:
+    case PixelFormat::BGR24: {
+        dst_data[0] = dst.data;
+        dst_linesize[0] = dst.linesize > 0 ? dst.linesize : dst.width * 3;
+        break;
+    }
+    case PixelFormat::RGBA:
+    case PixelFormat::BGRA: {
+        dst_data[0] = dst.data;
+        dst_linesize[0] = dst.linesize > 0 ? dst.linesize : dst.width * 4;
+        break;
+    }
+    case PixelFormat::GRAY: {
+        dst_data[0] = dst.data;
+        dst_linesize[0] = dst.linesize > 0 ? dst.linesize : dst.width;
+        break;
+    }
+    case PixelFormat::YUV420P:
+    case PixelFormat::NV12: {
+        // 按连续平面布局
+        int y_stride = dst.width;
+        int uv_stride = (_config.dst_format == PixelFormat::YUV420P) ? dst.width / 2 : dst.width;
+        size_t y_size = y_stride * dst.height;
+        dst_data[0] = dst.data;
+        dst_linesize[0] = y_stride;
+        dst_data[1] = dst.data + y_size;
+        dst_linesize[1] = uv_stride;
+        if (_config.dst_format == PixelFormat::YUV420P) {
+            size_t u_size = uv_stride * (dst.height / 2);
+            dst_data[2] = dst.data + y_size + u_size;
+            dst_linesize[2] = uv_stride;
+        }
+        break;
+    }
+    default:
+        ErrorL << "Unsupported dst pixel format in SwscaleConverter";
+        return false;
+    }
+
+    int ret = sws_scale(
+        _impl->sws_ctx,
+        src_data,
+        src_linesize,
+        0,
+        src.height,
+        dst_data,
+        dst_linesize
+    );
+
+    if (ret <= 0) {
+        ErrorL << "sws_scale failed, ret=" << ret;
+        return false;
+    }
     
     auto end = chrono::high_resolution_clock::now();
     auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
