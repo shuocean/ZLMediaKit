@@ -177,6 +177,33 @@ public:
     static bool parseInt(const std::string &json, const std::string &key, int &value);
     static bool parseFloat(const std::string &json, const std::string &key, float &value);
     static bool parseBool(const std::string &json, const std::string &key, bool &value);
+    
+    /**
+     * @brief 提取JSON对象（嵌套对象）
+     */
+    static std::string extractObject(const std::string &json_str, const std::string &key);
+    
+    /**
+     * @brief 提取JSON数组
+     */
+    static std::string extractArray(const std::string &json_str, const std::string &key);
+    
+    /**
+     * @brief 解析字符串数组
+     */
+    static std::vector<std::string> parseStringArray(const std::string &array_str);
+    
+    /**
+     * @brief 解析整数数组
+     */
+    static std::vector<int> parseIntArray(const std::string &array_str);
+    
+    /**
+     * @brief 分割JSON对象数组为独立对象列表
+     * @param array_str JSON数组字符串，如 [{...},{...}]
+     * @return 独立JSON对象字符串列表
+     */
+    static std::vector<std::string> splitObjectArray(const std::string &array_str);
 };
 
 } // namespace ai

@@ -3,10 +3,12 @@
  */
 
 #include "AlertEngine.h"
+#include "JsonHelper.h"
 #include "Util/logger.h"
 #include "Util/util.h"
 #include <chrono>
 #include <sstream>
+#include <fstream>
 
 using namespace std;
 using namespace toolkit;
@@ -28,24 +30,76 @@ static string generateUUID() {
 }
 
 bool AlertRule::fromJson(const string &json_str) {
-    // TODO: 完整JSON解析（Phase 4后期）
-    return false;
+    JsonHelper::parseString(json_str, "rule_id", rule_id);
+    JsonHelper::parseString(json_str, "description", description);
+    
+    int condition_int = 0;
+    JsonHelper::parseInt(json_str, "condition_type", condition_int);
+    condition_type = static_cast<AlertConditionType>(condition_int);
+    
+    JsonHelper::parseFloat(json_str, "min_confidence", min_confidence);
+    JsonHelper::parseInt(json_str, "cooldown_seconds", cooldown_seconds);
+    JsonHelper::parseInt(json_str, "max_alerts_per_minute", max_alerts_per_minute);
+    JsonHelper::parseBool(json_str, "enabled", enabled);
+    
+    // 解析target_classes数组
+    string array_str = JsonHelper::extractArray(json_str, "target_classes");
+    target_classes = JsonHelper::parseIntArray(array_str);
+    
+    InfoL << "AlertRule loaded from JSON: " << rule_id 
+          << ", target_classes: " << target_classes.size();
+    return true;
 }
 
 string AlertRule::toJson() const {
-    // TODO: 完整JSON序列化（Phase 4后期）
-    return "{}";
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("rule_id", rule_id);
+    ss << JsonHelper::field("description", description);
+    ss << JsonHelper::field("condition_type", static_cast<int>(condition_type));
+    ss << JsonHelper::field("min_confidence", min_confidence);
+    ss << JsonHelper::field("cooldown_seconds", cooldown_seconds);
+    ss << JsonHelper::field("max_alerts_per_minute", max_alerts_per_minute);
+    ss << JsonHelper::field("enabled", enabled);
+    
+    if (!target_classes.empty()) {
+        ss << JsonHelper::fieldArray("target_classes", 
+            JsonHelper::arrayInt(target_classes), true);
+    } else {
+        ss << JsonHelper::field("target_classes", "[]", true);
+    }
+    
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 string AlertEvent::toJson() const {
-    // TODO: 完整JSON序列化（Phase 4后期）
     stringstream ss;
-    ss << "{"
-       << "\"alert_id\":\"" << alert_id << "\","
-       << "\"rule_id\":\"" << rule_id << "\","
-       << "\"stream_id\":\"" << stream_id << "\","
-       << "\"timestamp\":" << timestamp
-       << "}";
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("alert_id", alert_id);
+    ss << JsonHelper::field("rule_id", rule_id);
+    ss << JsonHelper::field("stream_id", stream_id);
+    ss << JsonHelper::field("timestamp", (int)timestamp);
+    ss << JsonHelper::field("condition_type", (int)condition_type);
+    
+    // trigger_boxes数组
+    ss << "\"trigger_boxes\":[";
+    for (size_t i = 0; i < trigger_boxes.size(); ++i) {
+        ss << trigger_boxes[i].toJson();
+        if (i < trigger_boxes.size() - 1) ss << ",";
+    }
+    ss << "],";
+    
+    // metadata
+    ss << "\"metadata\":{";
+    size_t i = 0;
+    for (const auto &pair : metadata) {
+        ss << "\"" << pair.first << "\":\"" << pair.second << "\"";
+        if (++i < metadata.size()) ss << ",";
+    }
+    ss << "}";
+    
+    ss << JsonHelper::objectEnd();
     return ss.str();
 }
 
@@ -127,23 +181,96 @@ void AlertEngine::setAlertCallback(OnAlertCallback callback) {
 }
 
 int AlertEngine::loadFromFile(const string &filepath) {
-    // TODO: Phase 4 - Load rules from JSON file
+    ifstream file(filepath);
+    if (!file.is_open()) {
+        ErrorL << "Failed to open alert rules file: " << filepath;
+        return 0;
+    }
+    
+    stringstream buffer;
+    buffer << file.rdbuf();
+    string json_str = buffer.str();
+    
+    // TODO: 完整JSON数组解析（暂时简化）
+    InfoL << "Alert rules file loaded: " << filepath;
     return 0;
 }
 
 bool AlertEngine::saveToFile(const string &filepath) const {
-    // TODO: Phase 4 - Save rules to JSON file
-    return false;
+    ofstream file(filepath);
+    if (!file.is_open()) {
+        ErrorL << "Failed to open file for writing: " << filepath;
+        return false;
+    }
+    
+    lock_guard<recursive_mutex> lock(_mutex);
+    
+    stringstream ss;
+    ss << "{\"rules\":[";
+    
+    size_t i = 0;
+    for (const auto &pair : _rules) {
+        ss << pair.second.toJson();
+        if (++i < _rules.size()) ss << ",";
+    }
+    
+    ss << "]}";
+    file << ss.str();
+    
+    InfoL << "Alert rules saved to: " << filepath;
+    return true;
 }
 
 string AlertEngine::getRuleStatistics(const string &rule_id) const {
-    // TODO: Phase 4 - Rule statistics
-    return "{}";
+    lock_guard<recursive_mutex> lock(_mutex);
+    
+    auto it = _rules.find(rule_id);
+    if (it == _rules.end()) {
+        return "{}";
+    }
+    
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("rule_id", rule_id);
+    ss << JsonHelper::field("enabled", it->second.enabled);
+    
+    auto time_it = _last_alert_time.find(rule_id);
+    if (time_it != _last_alert_time.end()) {
+        ss << JsonHelper::field("last_alert_time", (int)time_it->second);
+    }
+    
+    auto count_it = _alert_count_per_minute.find(rule_id);
+    if (count_it != _alert_count_per_minute.end()) {
+        ss << JsonHelper::field("alerts_per_minute", count_it->second, true);
+    } else {
+        ss << JsonHelper::field("alerts_per_minute", 0, true);
+    }
+    
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 string AlertEngine::getGlobalStatistics() const {
-    // TODO: Phase 4 - Global statistics
-    return "{}";
+    lock_guard<recursive_mutex> lock(_mutex);
+    
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("total_rules", (int)_rules.size());
+    
+    int enabled_count = 0;
+    for (const auto &pair : _rules) {
+        if (pair.second.enabled) enabled_count++;
+    }
+    ss << JsonHelper::field("enabled_rules", enabled_count);
+    
+    int total_alerts = 0;
+    for (const auto &pair : _alert_count_per_minute) {
+        total_alerts += pair.second;
+    }
+    ss << JsonHelper::field("total_alerts_last_minute", total_alerts, true);
+    
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 void AlertEngine::resetStatistics(const string &rule_id) {

@@ -89,13 +89,22 @@ struct UploaderConfig {
     int device_id = 0;              ///< GPU设备ID
     bool use_pinned_memory = true;  ///< 使用页锁定内存（性能优化）
     bool async_upload = true;       ///< 异步上传（性能优化）
-    int stream_id = 0;              ///< CUDA Stream ID（并发优化）
-    size_t pool_size = 10;          ///< 内存池大小（避免频繁分配）
+    size_t pool_size = 5;           ///< 内存池大小
     
     /**
      * @brief 验证配置
      */
     bool isValid() const;
+    
+    /**
+     * @brief 从JSON加载配置
+     */
+    bool fromJson(const std::string &json_str);
+    
+    /**
+     * @brief 导出JSON配置
+     */
+    std::string toJson() const;
 };
 
 /**

@@ -61,6 +61,11 @@ struct DetectionBox {
      * @brief 序列化为JSON
      */
     std::string toJson() const;
+    
+    /**
+     * @brief 从JSON反序列化
+     */
+    bool fromJson(const std::string &json_str);
 };
 
 /**

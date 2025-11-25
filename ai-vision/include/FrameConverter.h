@@ -102,6 +102,16 @@ struct ConverterConfig {
      * @return 配置是否有效
      */
     bool isValid() const;
+    
+    /**
+     * @brief 从JSON加载配置
+     */
+    bool fromJson(const std::string &json_str);
+    
+    /**
+     * @brief 导出JSON配置
+     */
+    std::string toJson() const;
 };
 
 /**

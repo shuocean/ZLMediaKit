@@ -5,9 +5,11 @@
 #include "AIPipeline.h"
 #include "AITaskManager.h"
 #include "ModelRegistry.h"
+#include "JsonHelper.h"
 #include "Util/logger.h"
 #include "Util/util.h"
 #include <chrono>
+#include <sstream>
 
 using namespace std;
 using namespace toolkit;
@@ -22,13 +24,28 @@ bool PipelineConfig::isValid() const {
 }
 
 bool PipelineConfig::fromJson(const string &json_str) {
-    // TODO: Phase 3 - JSON parsing
-    return false;
+    JsonHelper::parseString(json_str, "stream_id", stream_id);
+    JsonHelper::parseInt(json_str, "queue_size", queue_size);
+    JsonHelper::parseInt(json_str, "skip_frames", skip_frames);
+    JsonHelper::parseBool(json_str, "enable_async", enable_async);
+    JsonHelper::parseBool(json_str, "enable_converter", enable_converter);
+    JsonHelper::parseBool(json_str, "enable_gpu_upload", enable_gpu_upload);
+    
+    InfoL << "PipelineConfig loaded from JSON";
+    return true;
 }
 
 string PipelineConfig::toJson() const {
-    // TODO: Phase 3 - JSON serialization
-    return "{}";
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("stream_id", stream_id);
+    ss << JsonHelper::field("queue_size", queue_size);
+    ss << JsonHelper::field("skip_frames", skip_frames);
+    ss << JsonHelper::field("enable_async", enable_async);
+    ss << JsonHelper::field("enable_converter", enable_converter);
+    ss << JsonHelper::field("enable_gpu_upload", enable_gpu_upload, true);
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 // ==================== AIPipeline ====================
@@ -181,8 +198,17 @@ bool StandardAIPipeline::updateConfig(const PipelineConfig &config) {
 }
 
 string StandardAIPipeline::getStatistics() const {
-    // TODO: Phase 3 - JSON序列化
-    return "{}";
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("stream_id", _config.stream_id);
+    ss << JsonHelper::field("total_frames", (int)_stats.total_frames);
+    ss << JsonHelper::field("processed_frames", (int)_stats.processed_frames);
+    ss << JsonHelper::field("skipped_frames", (int)_stats.skipped_frames);
+    ss << JsonHelper::field("avg_latency_ms", _stats.avg_latency_ms);
+    ss << JsonHelper::field("skip_ratio", _stats.skip_ratio);
+    ss << JsonHelper::field("running", _impl->running.load(), true);
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 void StandardAIPipeline::resetStatistics() {
@@ -261,8 +287,24 @@ size_t PipelineManager::getPipelineCount() const {
 }
 
 string PipelineManager::getGlobalStatistics() const {
-    // TODO: Phase 3 - 全局统计
-    return "{}";
+    lock_guard<recursive_mutex> lock(_mutex);
+    
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("pipeline_count", (int)_pipelines.size());
+    
+    ss << "\"pipelines\":[";
+    size_t i = 0;
+    for (const auto &pair : _pipelines) {
+        if (pair.second) {
+            ss << pair.second->getStatistics();
+            if (++i < _pipelines.size()) ss << ",";
+        }
+    }
+    ss << "]";
+    
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 void PipelineManager::clear() {

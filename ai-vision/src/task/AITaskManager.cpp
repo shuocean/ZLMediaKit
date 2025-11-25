@@ -3,7 +3,9 @@
  */
 
 #include "AITaskManager.h"
+#include "JsonHelper.h"
 #include "Util/logger.h"
+#include <sstream>
 
 using namespace std;
 using namespace toolkit;
@@ -12,21 +14,84 @@ namespace mediakit {
 namespace ai {
 
 bool AITaskConfig::fromJson(const string &json_str) {
-    // TODO: Phase 1.5 - JSON parsing
-    return false;
+    JsonHelper::parseString(json_str, "task_id", task_id);
+    JsonHelper::parseString(json_str, "model_id", model_id);
+    JsonHelper::parseString(json_str, "model_type", model_type);
+    JsonHelper::parseFloat(json_str, "conf_threshold", conf_threshold);
+    JsonHelper::parseFloat(json_str, "nms_threshold", nms_threshold);
+    JsonHelper::parseInt(json_str, "skip_frames", skip_frames);
+    JsonHelper::parseBool(json_str, "enabled", enabled);
+    JsonHelper::parseInt(json_str, "priority", priority);
+    
+    // 解析ROI对象
+    string roi_str = JsonHelper::extractObject(json_str, "roi");
+    if (!roi_str.empty() && roi_str != "{}") {
+        JsonHelper::parseFloat(roi_str, "x", roi.x);
+        JsonHelper::parseFloat(roi_str, "y", roi.y);
+        JsonHelper::parseFloat(roi_str, "w", roi.w);
+        JsonHelper::parseFloat(roi_str, "h", roi.h);
+        JsonHelper::parseBool(roi_str, "enabled", roi.enabled);
+    }
+    
+    InfoL << "AITaskConfig loaded from JSON: " << task_id 
+          << ", ROI enabled: " << roi.enabled;
+    return true;
 }
 
 string AITaskConfig::toJson() const {
-    // TODO: Phase 1.5 - JSON serialization
-    return "{}";
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("task_id", task_id);
+    ss << JsonHelper::field("model_id", model_id);
+    ss << JsonHelper::field("model_type", model_type);
+    ss << JsonHelper::field("conf_threshold", conf_threshold);
+    ss << JsonHelper::field("nms_threshold", nms_threshold);
+    ss << JsonHelper::field("skip_frames", skip_frames);
+    ss << JsonHelper::field("enabled", enabled);
+    ss << JsonHelper::field("priority", priority);
+    ss << JsonHelper::field("process_count", (int)process_count);
+    ss << JsonHelper::field("avg_inference_time_ms", avg_inference_time_ms);
+    
+    // ROI
+    ss << "\"roi\":";
+    ss << "{";
+    ss << "\"x\":" << roi.x << ",";
+    ss << "\"y\":" << roi.y << ",";
+    ss << "\"w\":" << roi.w << ",";
+    ss << "\"h\":" << roi.h << ",";
+    ss << "\"enabled\":" << (roi.enabled ? "true" : "false");
+    ss << "}";
+    
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 string StreamTaskBinding::toJson() const {
-    return "{}";
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("stream_id", stream_id);
+    
+    ss << "\"task_ids\":[";
+    for (size_t i = 0; i < task_ids.size(); ++i) {
+        ss << "\"" << task_ids[i] << "\"";
+        if (i < task_ids.size() - 1) ss << ",";
+    }
+    ss << "]";
+    
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 bool StreamTaskBinding::fromJson(const string &json_str) {
-    return false;
+    JsonHelper::parseString(json_str, "stream_id", stream_id);
+    
+    // 解析task_ids数组
+    string array_str = JsonHelper::extractArray(json_str, "task_ids");
+    task_ids = JsonHelper::parseStringArray(array_str);
+    
+    InfoL << "StreamTaskBinding loaded from JSON: " << stream_id 
+          << ", tasks: " << task_ids.size();
+    return true;
 }
 
 AITaskManager &AITaskManager::Instance() {

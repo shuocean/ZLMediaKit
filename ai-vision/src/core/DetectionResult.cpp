@@ -3,9 +3,13 @@
  */
 
 #include "DetectionResult.h"
-#include <cmath>
+#include "JsonHelper.h"
+#include "Util/logger.h"
+#include <sstream>
+#include <algorithm>
 
 using namespace std;
+using namespace toolkit;
 
 namespace mediakit {
 namespace ai {
@@ -27,8 +31,28 @@ float DetectionBox::iou(const DetectionBox &other) const {
 }
 
 string DetectionBox::toJson() const {
-    // TODO: Implement proper JSON serialization
-    return "{}";
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("x", x);
+    ss << JsonHelper::field("y", y);
+    ss << JsonHelper::field("w", w);
+    ss << JsonHelper::field("h", h);
+    ss << JsonHelper::field("confidence", confidence);
+    ss << JsonHelper::field("class_id", class_id);
+    ss << JsonHelper::field("label", label, true);
+    ss << JsonHelper::objectEnd();
+    return ss.str();
+}
+
+bool DetectionBox::fromJson(const string &json_str) {
+    JsonHelper::parseFloat(json_str, "x", x);
+    JsonHelper::parseFloat(json_str, "y", y);
+    JsonHelper::parseFloat(json_str, "w", w);
+    JsonHelper::parseFloat(json_str, "h", h);
+    JsonHelper::parseFloat(json_str, "confidence", confidence);
+    JsonHelper::parseInt(json_str, "class_id", class_id);
+    JsonHelper::parseString(json_str, "label", label);
+    return true;
 }
 
 vector<DetectionBox> DetectionResult::filterByClass(const vector<int> &class_ids) const {
@@ -87,13 +111,53 @@ vector<int> DetectionResult::getAllClasses() const {
 }
 
 string DetectionResult::toJson() const {
-    // TODO: Implement proper JSON serialization
-    return "{}";
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("stream_id", stream_id);
+    ss << JsonHelper::field("model_id", model_id);
+    ss << JsonHelper::field("timestamp", (int)timestamp);
+    ss << JsonHelper::field("width", width);
+    ss << JsonHelper::field("height", height);
+    ss << JsonHelper::field("inference_time_ms", inference_time_ms);
+    
+    // boxes数组
+    ss << "\"boxes\":[";
+    for (size_t i = 0; i < boxes.size(); ++i) {
+        ss << boxes[i].toJson();
+        if (i < boxes.size() - 1) ss << ",";
+    }
+    ss << "]";
+    
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 bool DetectionResult::fromJson(const string &json_str) {
-    // TODO: Implement JSON deserialization
-    return false;
+    JsonHelper::parseString(json_str, "stream_id", stream_id);
+    JsonHelper::parseString(json_str, "model_id", model_id);
+    
+    int ts = 0;
+    JsonHelper::parseInt(json_str, "timestamp", ts);
+    timestamp = ts;
+    
+    JsonHelper::parseInt(json_str, "width", width);
+    JsonHelper::parseInt(json_str, "height", height);
+    JsonHelper::parseFloat(json_str, "inference_time_ms", inference_time_ms);
+    
+    // 解析boxes数组
+    boxes.clear();
+    string array_str = JsonHelper::extractArray(json_str, "boxes");
+    vector<string> box_objects = JsonHelper::splitObjectArray(array_str);
+    
+    for (const auto &box_str : box_objects) {
+        DetectionBox box;
+        if (box.fromJson(box_str)) {
+            boxes.push_back(box);
+        }
+    }
+    
+    InfoL << "DetectionResult loaded from JSON: " << boxes.size() << " boxes";
+    return true;
 }
 
 } // namespace ai

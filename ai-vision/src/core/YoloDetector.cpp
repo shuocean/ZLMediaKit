@@ -3,12 +3,14 @@
  */
 
 #include "YoloDetector.h"
+#include "JsonHelper.h"
 #include "Util/logger.h"
 #include "Util/util.h"
 #include <onnxruntime_cxx_api.h>
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <sstream>
 
 using namespace std;
 using namespace toolkit;
@@ -44,13 +46,54 @@ bool YoloConfig::isValid() const {
 }
 
 bool YoloConfig::fromJson(const string &json_str) {
-    // TODO: JSON解析
-    return false;
+    JsonHelper::parseString(json_str, "model_path", model_path);
+    
+    int provider_int = 0;
+    JsonHelper::parseInt(json_str, "provider", provider_int);
+    provider = static_cast<ExecutionProvider>(provider_int);
+    
+    JsonHelper::parseInt(json_str, "device_id", device_id);
+    JsonHelper::parseInt(json_str, "input_width", input_width);
+    JsonHelper::parseInt(json_str, "input_height", input_height);
+    JsonHelper::parseBool(json_str, "normalize", normalize);
+    JsonHelper::parseFloat(json_str, "conf_threshold", conf_threshold);
+    JsonHelper::parseFloat(json_str, "nms_threshold", nms_threshold);
+    JsonHelper::parseInt(json_str, "max_det", max_det);
+    JsonHelper::parseInt(json_str, "batch_size", batch_size);
+    JsonHelper::parseBool(json_str, "enable_fp16", enable_fp16);
+    
+    // 解析class_names数组
+    string array_str = JsonHelper::extractArray(json_str, "class_names");
+    class_names = JsonHelper::parseStringArray(array_str);
+    
+    InfoL << "YoloConfig loaded from JSON, classes: " << class_names.size();
+    return true;
 }
 
 string YoloConfig::toJson() const {
-    // TODO: JSON序列化
-    return "{}";
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("model_path", model_path);
+    ss << JsonHelper::field("provider", static_cast<int>(provider));
+    ss << JsonHelper::field("device_id", device_id);
+    ss << JsonHelper::field("input_width", input_width);
+    ss << JsonHelper::field("input_height", input_height);
+    ss << JsonHelper::field("normalize", normalize);
+    ss << JsonHelper::field("conf_threshold", conf_threshold);
+    ss << JsonHelper::field("nms_threshold", nms_threshold);
+    ss << JsonHelper::field("max_det", max_det);
+    ss << JsonHelper::field("batch_size", batch_size);
+    ss << JsonHelper::field("enable_fp16", enable_fp16);
+    
+    if (!class_names.empty()) {
+        ss << JsonHelper::fieldArray("class_names", 
+            JsonHelper::arrayString(class_names), true);
+    } else {
+        ss << JsonHelper::fieldArray("class_names", "[]", true);
+    }
+    
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 // ==================== YoloDetector ====================
@@ -314,8 +357,18 @@ const YoloConfig &OnnxYoloDetector::getConfig() const {
 }
 
 string OnnxYoloDetector::getStatistics() const {
-    // TODO: JSON序列化
-    return "{}";
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("detect_count", (int)_stats.detect_count);
+    ss << JsonHelper::field("total_time_us", (int)_stats.total_time_us);
+    ss << JsonHelper::field("preprocess_time_us", (int)_stats.preprocess_time_us);
+    ss << JsonHelper::field("inference_time_us", (int)_stats.inference_time_us);
+    ss << JsonHelper::field("postprocess_time_us", (int)_stats.postprocess_time_us);
+    ss << JsonHelper::field("avg_fps", _stats.avg_fps);
+    ss << JsonHelper::field("avg_latency_ms", _stats.avg_latency_ms);
+    ss << JsonHelper::field("avg_detections", _stats.avg_detections, true);
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 void OnnxYoloDetector::resetStatistics() {

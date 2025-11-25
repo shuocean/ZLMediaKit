@@ -3,7 +3,10 @@
  */
 
 #include "GpuUploader.h"
+#include "JsonHelper.h"
 #include "Util/logger.h"
+#include "Util/util.h"
+#include <sstream>
 
 #ifdef ENABLE_CUDA
 #include <cuda_runtime.h>
@@ -61,6 +64,31 @@ GpuFrame::Ptr GpuFrame::create(int width, int height, PixelFormat format, int de
 
 bool UploaderConfig::isValid() const {
     return device_id >= 0 && pool_size > 0;
+}
+
+bool UploaderConfig::fromJson(const string &json_str) {
+    JsonHelper::parseInt(json_str, "device_id", device_id);
+    JsonHelper::parseBool(json_str, "use_pinned_memory", use_pinned_memory);
+    JsonHelper::parseBool(json_str, "async_upload", async_upload);
+    
+    int pool = 0;
+    if (JsonHelper::parseInt(json_str, "pool_size", pool)) {
+        pool_size = pool;
+    }
+    
+    InfoL << "UploaderConfig loaded from JSON";
+    return true;
+}
+
+string UploaderConfig::toJson() const {
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("device_id", device_id);
+    ss << JsonHelper::field("use_pinned_memory", use_pinned_memory);
+    ss << JsonHelper::field("async_upload", async_upload);
+    ss << JsonHelper::field("pool_size", (int)pool_size, true);
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 // ==================== GpuUploader ====================
@@ -156,8 +184,31 @@ bool CudaUploader::getMemoryInfo(size_t &free_memory, size_t &total_memory) cons
 }
 
 string CudaUploader::getStatistics() const {
-    // TODO: Phase 3 - JSON序列化
-    return "{}";
+    stringstream ss;
+    ss << JsonHelper::objectStart();
+    ss << JsonHelper::field("uploader_type", "cuda");
+    ss << JsonHelper::field("device_id", _config.device_id);
+    ss << JsonHelper::field("upload_count", (int)_stats.upload_count);
+    ss << JsonHelper::field("total_time_us", (int)_stats.total_time_us);
+    
+    float avg_time_ms = _stats.upload_count > 0 ?
+        (_stats.total_time_us / (float)_stats.upload_count / 1000.0f) : 0.0f;
+    ss << JsonHelper::field("avg_time_ms", avg_time_ms);
+    
+    float bandwidth_mbps = _stats.total_time_us > 0 ?
+        (_stats.total_bytes * 8.0f / _stats.total_time_us) : 0.0f;
+    ss << JsonHelper::field("bandwidth_mbps", bandwidth_mbps);
+    
+    size_t free_mem = 0, total_mem = 0;
+    if (getMemoryInfo(free_mem, total_mem)) {
+        ss << JsonHelper::field("free_memory_mb", (int)(free_mem / 1024 / 1024));
+        ss << JsonHelper::field("total_memory_mb", (int)(total_mem / 1024 / 1024), true);
+    } else {
+        ss << JsonHelper::field("memory_info", "unavailable", true);
+    }
+    
+    ss << JsonHelper::objectEnd();
+    return ss.str();
 }
 
 void CudaUploader::resetStatistics() {
